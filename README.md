@@ -45,6 +45,3 @@ jupyter notebook notebooks/experiment.ipynb
 
 [To be added after experiments]
 
-## License
-
-[Your License]
