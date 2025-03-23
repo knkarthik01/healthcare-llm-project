@@ -21,7 +21,7 @@ def load_patient_data(data_dir: str) -> Dict[str, Dict[str, Any]]:
     patients = {}
     
     # Find all patient JSON files in the FHIR directory
-    patient_dir = os.path.join(data_dir, 'fhir')
+    patient_dir = os.path.join(data_dir, '')
     patient_files = [f for f in os.listdir(patient_dir) if f.endswith('.json')]
     
     # First pass: Identify patients
