@@ -20,58 +20,58 @@ def load_patient_data(data_dir: str) -> Dict[str, Dict[str, Any]]:
     """
     patients = {}
     
-    # Find all patient JSON files in the FHIR directory
-    patient_dir = os.path.join(data_dir, '')
-    patient_files = [f for f in os.listdir(patient_dir) if f.endswith('.json')]
+    # Find all JSON files directly in the given directory
+    try:
+        patient_files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
+        print(f"Found {len(patient_files)} JSON files in {data_dir}")
+    except FileNotFoundError:
+        print(f"Directory not found: {data_dir}")
+        return patients
     
-    # First pass: Identify patients
+    # Process each file
     for file in patient_files:
-        with open(os.path.join(patient_dir, file), 'r') as f:
-            data = json.load(f)
-            
-            # Check if this is a bundle with multiple resources
-            if data.get('resourceType') == 'Bundle':
-                entries = data.get('entry', [])
-                for entry in entries:
-                    resource = entry.get('resource', {})
-                    # Process patient resources
-                    if resource.get('resourceType') == 'Patient':
-                        patient_id = resource.get('id')
-                        if patient_id:
-                            patients[patient_id] = {
-                                'id': patient_id,
-                                'demographics': extract_demographics(resource),
-                                'conditions': [],
-                                'observations': [],
-                                'medications': []
-                            }
-            
-            # Or if it's a single patient resource
-            elif data.get('resourceType') == 'Patient':
-                patient_id = data.get('id')
-                if patient_id:
-                    patients[patient_id] = {
-                        'id': patient_id,
-                        'demographics': extract_demographics(data),
-                        'conditions': [],
-                        'observations': [],
-                        'medications': []
-                    }
-    
-    # Second pass: collect all medical data for each patient
-    for file in patient_files:
-        with open(os.path.join(patient_dir, file), 'r') as f:
-            data = json.load(f)
-            
-            # Handle bundle resources
-            if data.get('resourceType') == 'Bundle':
-                entries = data.get('entry', [])
-                for entry in entries:
-                    resource = entry.get('resource', {})
-                    process_resource(resource, patients)
-            else:
-                # Handle single resources
-                process_resource(data, patients)
+        file_path = os.path.join(data_dir, file)
+        with open(file_path, 'r') as f:
+            try:
+                data = json.load(f)
+                
+                # Check if this is a bundle with multiple resources
+                if data.get('resourceType') == 'Bundle':
+                    entries = data.get('entry', [])
+                    
+                    # First pass: identify patients
+                    for entry in entries:
+                        resource = entry.get('resource', {})
+                        if resource.get('resourceType') == 'Patient':
+                            patient_id = resource.get('id')
+                            if patient_id and patient_id not in patients:
+                                patients[patient_id] = {
+                                    'id': patient_id,
+                                    'demographics': extract_demographics(resource),
+                                    'conditions': [],
+                                    'observations': [],
+                                    'medications': []
+                                }
+                    
+                    # Second pass: process all resources
+                    for entry in entries:
+                        resource = entry.get('resource', {})
+                        process_resource(resource, patients)
+                
+                # Or if it's a single patient resource
+                elif data.get('resourceType') == 'Patient':
+                    patient_id = data.get('id')
+                    if patient_id and patient_id not in patients:
+                        patients[patient_id] = {
+                            'id': patient_id,
+                            'demographics': extract_demographics(data),
+                            'conditions': [],
+                            'observations': [],
+                            'medications': []
+                        }
+            except json.JSONDecodeError:
+                print(f"Error decoding JSON file: {file}")
+                continue
     
     return patients
 
@@ -150,7 +150,7 @@ def extract_demographics(patient_resource: Dict[str, Any]) -> Dict[str, Any]:
 def extract_condition(condition_resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Extract condition information from a condition resource."""
     code_info = condition_resource.get('code', {})
-    coding = code_info.get('coding', [{}])[0]
+    coding = code_info.get('coding', [{}])[0] if code_info.get('coding') else {}
     
     # Get basic condition info
     condition_name = code_info.get('text', coding.get('display', 'Unknown Condition'))
@@ -160,7 +160,7 @@ def extract_condition(condition_resource: Dict[str, Any]) -> Optional[Dict[str, 
     # Get clinical status
     clinical_status = 'unknown'
     if 'clinicalStatus' in condition_resource:
-        status_coding = condition_resource['clinicalStatus'].get('coding', [{}])[0]
+        status_coding = condition_resource['clinicalStatus'].get('coding', [{}])[0] if condition_resource['clinicalStatus'].get('coding') else {}
         clinical_status = status_coding.get('code', 'unknown')
     
     # Get onset date if available
@@ -179,7 +179,7 @@ def extract_condition(condition_resource: Dict[str, Any]) -> Optional[Dict[str, 
 def extract_observation(observation_resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Extract observation information from an observation resource."""
     code_info = observation_resource.get('code', {})
-    coding = code_info.get('coding', [{}])[0]
+    coding = code_info.get('coding', [{}])[0] if code_info.get('coding') else {}
     
     # Get basic observation info
     observation_name = code_info.get('text', coding.get('display', 'Unknown Observation'))
@@ -189,29 +189,27 @@ def extract_observation(observation_resource: Dict[str, Any]) -> Optional[Dict[s
     # Get value
     value = None
     value_type = None
+    unit = ""
     
     if 'valueQuantity' in observation_resource:
         value = observation_resource['valueQuantity'].get('value')
         value_type = 'quantity'
         unit = observation_resource['valueQuantity'].get('unit', '')
     elif 'valueCodeableConcept' in observation_resource:
-        value_coding = observation_resource['valueCodeableConcept'].get('coding', [{}])[0]
+        value_coding = observation_resource['valueCodeableConcept'].get('coding', [{}])[0] if observation_resource['valueCodeableConcept'].get('coding') else {}
         value = value_coding.get('display', value_coding.get('code'))
         value_type = 'concept'
-        unit = ''
     elif 'valueString' in observation_resource:
         value = observation_resource['valueString']
         value_type = 'string'
-        unit = ''
     else:
         # If no direct value, check component values (e.g., BP has systolic/diastolic)
         components = observation_resource.get('component', [])
         if components:
             value = {}
             value_type = 'component'
-            unit = ''
             for component in components:
-                comp_code = component.get('code', {}).get('coding', [{}])[0].get('code')
+                comp_code = component.get('code', {}).get('coding', [{}])[0].get('code') if component.get('code', {}).get('coding') else None
                 comp_value = component.get('valueQuantity', {}).get('value')
                 if comp_code and comp_value is not None:
                     value[comp_code] = comp_value
@@ -247,7 +245,7 @@ def extract_medication(medication_resource: Dict[str, Any]) -> Optional[Dict[str
     if not med_code_info:
         return None
         
-    coding = med_code_info.get('coding', [{}])[0]
+    coding = med_code_info.get('coding', [{}])[0] if med_code_info.get('coding') else {}
     
     # Get basic medication info
     medication_name = med_code_info.get('text', coding.get('display', 'Unknown Medication'))
