@@ -33,6 +33,20 @@ pip install -r requirements.txt
 
 This project uses the Synthea synthetic patient dataset, which provides realistic but non-real patient records.
 
+## API Configuration
+This project requires an LLM API key to run the diabetes risk prediction models.
+
+### Option 1: Environment Variables
+Create a .env file in the project root with your API key:
+Copy API_KEY=your_actual_key_here
+
+### Option 2: Google Colab
+If running in Google Colab, use Colab Secrets to store your API key securely:
+In Colab, click on the key icon in the left sidebar
+
+Add a new secret with name API_KEY and your key as the value
+Access it in code with userdata.get('API_KEY')
+
 ## Usage
 
 1. Download the Synthea dataset and place it in the `data/synthea` directory
