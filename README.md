@@ -57,5 +57,12 @@ jupyter notebook notebooks/experiment.ipynb
 
 ## Results
 
-[To be added after experiments]
+### Our evaluation showed that:
+
+Few-Shot Learning performed best for classification accuracy (67%)
+Combined Approach provided deepest reasoning (4.67/5.0)
+Tree of Thought was best at identifying risk factors (7.22 factors avg)
+LLM prompting methods identified potential at-risk patients missed by rule-based systems
+
+The methods were evaluated on their ability to classify patients into Low, Medium, and High diabetes risk categories, with detailed analysis of reasoning quality and comprehensiveness.
 
